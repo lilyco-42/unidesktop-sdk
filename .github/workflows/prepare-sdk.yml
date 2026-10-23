@@ -1,0 +1,37 @@
+name: Prepare SDK source and lockfile
+
+on:
+  push:
+    branches: [feat/read-only-appearance-snapshot]
+    paths:
+      - crates/uda-cli/Cargo.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Generate dependency lock and format source in Actions only
+        run: |
+          cargo update --workspace
+          cargo fmt --all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-prepared-source
+          path: |
+            Cargo.lock
+            crates/uda-core/src/appearance.rs
+            crates/uda-core/src/appearance/snapshot.rs
+            crates/uda-cli/src/main.rs
+          retention-days: 3
+          if-no-files-found: error

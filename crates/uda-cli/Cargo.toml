@@ -6,5 +6,10 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 uda-core = { path = "../uda-core" }
+serde_json.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
 uda-platform-linux = { path = "../uda-platform-linux" }
-tokio.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+uda-platform-windows = { path = "../uda-platform-windows" }
