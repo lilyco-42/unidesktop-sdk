@@ -1,80 +1,125 @@
-use uda_core::appearance::AppearanceManager;
-use uda_core::notification::{Notification, NotificationManager, Urgency};
-use uda_core::wakelock::{WakeLockManager, WakeLockType};
-use uda_core::wallpaper::{FillMode, WallpaperManager, WallpaperOptions};
-use uda_platform_linux::appearance::LinuxAppearanceManager;
-use uda_platform_linux::detection::detect_environment;
-use uda_platform_linux::notification::LinuxNotificationManager;
-use uda_platform_linux::wakelock::LinuxWakeLockManager;
-use uda_platform_linux::wallpaper::LinuxWallpaperManager;
+use std::io::{self, Write};
+use std::process::ExitCode;
 
-fn main() {
-    println!("=== UDA Runtime Diagnostic ===");
+use uda_core::appearance::{AppearanceManager, AppearanceSnapshot};
 
-    // 1. 测试环境检测
-    match detect_environment() {
-        Ok(env) => println!("Detected Environment: {:#?}", env),
-        Err(e) => println!("Failed to detect environment: {:?}", e),
+const HELP: &str = "UDA read-only desktop diagnostics\n\nUsage: uda-cli [appearance] [--json]\n       uda-cli --help\n\nReports theme, accent and appearance capabilities without changing the desktop.\nA valid report may contain unknown, unsupported or error fields.\n";
+
+#[derive(Debug, PartialEq, Eq)]
+enum Command {
+    Appearance { json: bool },
+    Help,
+}
+
+fn parse(args: &[String]) -> Result<Command, &'static str> {
+    match args
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [] | ["appearance"] => Ok(Command::Appearance { json: false }),
+        ["--json"] | ["appearance", "--json"] => Ok(Command::Appearance { json: true }),
+        ["--help"] | ["-h"] | ["appearance", "--help"] => Ok(Command::Help),
+        _ => Err("unsupported arguments; use --help for read-only commands"),
     }
+}
 
-    // 2. 测试外观检测
-    let manager = LinuxAppearanceManager::new();
-    match manager.detect_theme() {
-        Ok(theme) => println!("Detected Theme: {:?}", theme),
-        Err(e) => println!("Failed to detect theme: {:?}", e),
+#[cfg(target_os = "linux")]
+fn snapshot() -> AppearanceSnapshot {
+    uda_platform_linux::appearance::LinuxAppearanceManager::new().snapshot()
+}
+
+#[cfg(windows)]
+fn snapshot() -> AppearanceSnapshot {
+    uda_platform_windows::appearance::WindowsAppearanceManager::new().snapshot()
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+fn snapshot() -> AppearanceSnapshot {
+    use uda_core::appearance::AppearanceReading;
+    AppearanceSnapshot {
+        schema_version: 1,
+        capabilities: AppearanceReading::Unsupported,
+        theme: AppearanceReading::Unsupported,
+        accent: AppearanceReading::Unsupported,
     }
+}
 
-    // 3. 测试壁纸设置
-    let wallpaper_manager = LinuxWallpaperManager::new();
-    let options = WallpaperOptions {
-        fill_mode: FillMode::Fill,
-        monitor_index: None,
-        dark_mode: false,
-    };
-
-    match wallpaper_manager.set_wallpaper("/home/user/Pictures/wallpaper.jpg", &options) {
-        Ok(()) => println!("Wallpaper set successfully"),
-        Err(e) => println!("Failed to set wallpaper: {:?}", e),
-    }
-
-    // 4. 测试通知发送（最小示例）
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let notification_manager =
-        rt.block_on(async { LinuxNotificationManager::new().await.unwrap() });
-
-    let notification = Notification {
-        app_name: "UDA".to_string(),
-        replaces_id: 0,
-        app_icon: String::new(),
-        summary: "Hello from UDA".to_string(),
-        body: "This is a minimal notification example".to_string(),
-        actions: Vec::new(),
-        expire_timeout: 5000,
-        urgency: Urgency::Normal,
-    };
-
-    match rt.block_on(async { notification_manager.send(&notification).await }) {
-        Ok(id) => println!("Notification sent successfully, id={}", id),
-        Err(e) => println!("Failed to send notification: {:?}", e),
-    }
-
-    // 5. 测试 WakeLock（持有 2 秒后自动释放）
-    let wakelock_manager = rt.block_on(async { LinuxWakeLockManager::new().await.unwrap() });
-
-    let guard = rt.block_on(async {
-        wakelock_manager
-            .acquire(WakeLockType::PreventDisplaySleep, "UDA demo wakelock")
-            .await
-    });
-
-    match guard {
-        Ok(guard) => {
-            println!("WakeLock acquired, holding for 2 seconds...");
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            println!("Releasing WakeLock early...");
-            guard.release();
-            println!("WakeLock released");
+fn run() -> Result<(), (u8, String)> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    // Parse before creating any backend: help and invalid commands touch no OS API.
+    let command = parse(&args).map_err(|message| (2, message.to_owned()))?;
+    let mut output = io::stdout().lock();
+    match command {
+        Command::Help => output
+            .write_all(HELP.as_bytes())
+            .map_err(|e| (1, e.to_string()))?,
+        Command::Appearance { json } => {
+            let report = snapshot();
+            if json {
+                serde_json::to_writer(&mut output, &report).map_err(|e| (1, e.to_string()))?;
+                writeln!(output).map_err(|e| (1, e.to_string()))?;
+            } else {
+                writeln!(output, "UDA read-only appearance report\n{report:#?}")
+                    .map_err(|e| (1, e.to_string()))?;
+            }
         }
-        Err(e) => println!("Failed to acquire WakeLock: {:?}", e),
+    }
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err((code, message)) => {
+            eprintln!("uda-cli: {message}");
+            ExitCode::from(code)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn defaults_and_json_select_only_read_only_appearance() {
+        assert_eq!(parse(&[]), Ok(Command::Appearance { json: false }));
+        assert_eq!(
+            parse(&args(&["appearance"])),
+            Ok(Command::Appearance { json: false })
+        );
+        assert_eq!(
+            parse(&args(&["--json"])),
+            Ok(Command::Appearance { json: true })
+        );
+        assert_eq!(
+            parse(&args(&["appearance", "--json"])),
+            Ok(Command::Appearance { json: true })
+        );
+    }
+
+    #[test]
+    fn help_is_available_without_a_desktop() {
+        for values in [&["--help"][..], &["-h"], &["appearance", "--help"]] {
+            assert_eq!(parse(&args(values)), Ok(Command::Help));
+        }
+    }
+
+    #[test]
+    fn mutating_and_ambiguous_commands_are_rejected() {
+        for values in [
+            &["set-wallpaper", "/private.jpg"][..],
+            &["shutdown"],
+            &["--json", "--json"],
+            &["appearance", "--json", "extra"],
+        ] {
+            assert!(parse(&args(values)).is_err());
+        }
     }
 }

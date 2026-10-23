@@ -54,6 +54,7 @@ jobs:
   cross-check:
     name: Cross-Compile Hygiene
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,11 +67,10 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Add mingw-w64 linker for the windows-gnu target
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mingw-w64
-
+      # This gate emits Rust metadata only; the workspace has no C/C++ build
+      # dependencies. A GNU linker is needed in the release job below, which
+      # actually links a DLL, not for this cargo check. Native Windows builds
+      # and tests remain separate required gates.
       - name: Type-check whole workspace for x86_64-pc-windows-gnu
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-gnu
 
@@ -102,7 +102,16 @@ jobs:
         run: cargo test --locked -p uda-core
 
       - name: Test uda-platform-linux (isolated D-Bus session)
-        run: dbus-run-session -- cargo test --locked -p uda-platform-linux -- --nocapture
+        run: bash scripts/test-linux-mock.sh
+
+      - name: Test read-only CLI and snapshot contract
+        run: cargo test --locked -p uda-cli
+
+      - name: Build read-only CLI
+        run: cargo build --locked -p uda-cli
+
+      - name: Verify Linux fallback and missing desktop reports
+        run: python3 scripts/verify-appearance-snapshot.py target/debug/uda-cli
 
       - name: Test uda-ffi (C-ABI)
         run: cargo test --locked -p uda-ffi
@@ -160,6 +169,18 @@ jobs:
 
       - name: Test uda-platform-windows
         run: cargo test --locked -p uda-platform-windows
+
+      - name: Test read-only CLI and snapshot contract
+        run: cargo test --locked -p uda-cli
+
+      - name: Build read-only CLI
+        run: cargo build --locked -p uda-cli
+
+      - name: Verify snapshot against independent Windows registry reads
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
+        run: python scripts/verify-appearance-snapshot.py target/debug/uda-cli.exe
 
       - name: Test uda-ffi (C-ABI)
         run: cargo test --locked -p uda-ffi

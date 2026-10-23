@@ -15,6 +15,9 @@
 
 </div>
 
+LYCO 分支扩展：[Windows/Linux 只读桌面外观快照与 JSON CLI](docs/READ_ONLY_APPEARANCE.md)。
+该扩展正在验收，不更改浏览器配置，也不代表第三方检测通过。以下保留上游文档。
+
 ---
 
 ## 为什么需要 UDA？
