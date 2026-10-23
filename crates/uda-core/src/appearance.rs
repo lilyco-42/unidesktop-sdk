@@ -2,7 +2,9 @@ use crate::capability::{Capability, RgbaColor, Theme};
 use crate::error::UdaError;
 
 mod snapshot;
-pub use snapshot::{AppearanceCapabilities, AppearanceErrorKind, AppearanceReading, AppearanceSnapshot};
+pub use snapshot::{
+    AppearanceCapabilities, AppearanceErrorKind, AppearanceReading, AppearanceSnapshot,
+};
 
 /// Cross-platform system appearance management interface.
 pub trait AppearanceManager {

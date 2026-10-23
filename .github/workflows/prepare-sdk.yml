@@ -5,6 +5,7 @@ on:
     branches: [feat/read-only-appearance-snapshot]
     paths:
       - crates/uda-cli/Cargo.toml
+      - crates/uda-cli/tests/**
   workflow_dispatch:
 
 permissions:
@@ -33,5 +34,6 @@ jobs:
             crates/uda-core/src/appearance.rs
             crates/uda-core/src/appearance/snapshot.rs
             crates/uda-cli/src/main.rs
+            crates/uda-cli/tests/appearance_contract.rs
           retention-days: 3
           if-no-files-found: error

@@ -49,10 +49,18 @@ impl<T> AppearanceReading<T> {
         match result {
             Ok(value) => Self::Available { value },
             Err(UdaError::NotSupported(_)) => Self::Unsupported,
-            Err(UdaError::DetectionFailed(_)) => Self::Error { kind: AppearanceErrorKind::Detection },
-            Err(UdaError::CommandFailed(_)) => Self::Error { kind: AppearanceErrorKind::Command },
-            Err(UdaError::Io(_)) => Self::Error { kind: AppearanceErrorKind::Io },
-            Err(UdaError::Internal(_)) => Self::Error { kind: AppearanceErrorKind::Internal },
+            Err(UdaError::DetectionFailed(_)) => Self::Error {
+                kind: AppearanceErrorKind::Detection,
+            },
+            Err(UdaError::CommandFailed(_)) => Self::Error {
+                kind: AppearanceErrorKind::Command,
+            },
+            Err(UdaError::Io(_)) => Self::Error {
+                kind: AppearanceErrorKind::Io,
+            },
+            Err(UdaError::Internal(_)) => Self::Error {
+                kind: AppearanceErrorKind::Internal,
+            },
         }
     }
 }
@@ -73,24 +81,35 @@ impl AppearanceSnapshot {
     pub(super) fn read(manager: &(impl AppearanceManager + ?Sized)) -> Self {
         let capabilities = manager.capabilities();
         let flags = capabilities.as_ref().ok().copied();
-        let theme = match Self::read_field(flags, Capability::DETECT_THEME, || manager.detect_theme()) {
-            AppearanceReading::Available { value: Theme::Unknown } => AppearanceReading::Unknown,
-            reading => reading,
-        };
-        let accent = Self::read_field(flags, Capability::READ_ACCENT_COLOR, || manager.get_accent_color());
-        let capabilities = AppearanceReading::from_result(capabilities.map(|flags| AppearanceCapabilities {
-            detect_theme: flags.contains(Capability::DETECT_THEME),
-            read_accent_color: flags.contains(Capability::READ_ACCENT_COLOR),
-            follow_system_theme: flags.contains(Capability::FOLLOW_SYSTEM_THEME),
-        }));
-        Self { schema_version: 1, capabilities, theme, accent }
+        let theme =
+            match Self::read_field(flags, Capability::DETECT_THEME, || manager.detect_theme()) {
+                AppearanceReading::Available {
+                    value: Theme::Unknown,
+                } => AppearanceReading::Unknown,
+                reading => reading,
+            };
+        let accent = Self::read_field(flags, Capability::READ_ACCENT_COLOR, || {
+            manager.get_accent_color()
+        });
+        let capabilities =
+            AppearanceReading::from_result(capabilities.map(|flags| AppearanceCapabilities {
+                detect_theme: flags.contains(Capability::DETECT_THEME),
+                read_accent_color: flags.contains(Capability::READ_ACCENT_COLOR),
+                follow_system_theme: flags.contains(Capability::FOLLOW_SYSTEM_THEME),
+            }));
+        Self {
+            schema_version: 1,
+            capabilities,
+            theme,
+            accent,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
     use super::*;
+    use std::cell::Cell;
 
     struct Manager {
         flags: Result<Capability, fn() -> UdaError>,
@@ -100,7 +119,9 @@ mod tests {
     }
 
     impl AppearanceManager for Manager {
-        fn capabilities(&self) -> Result<Capability, UdaError> { self.flags.map_err(|error| error()) }
+        fn capabilities(&self) -> Result<Capability, UdaError> {
+            self.flags.map_err(|error| error())
+        }
         fn detect_theme(&self) -> Result<Theme, UdaError> {
             let (theme, accent) = self.reads.get();
             self.reads.set((theme + 1, accent));
@@ -117,7 +138,12 @@ mod tests {
         Manager {
             flags: Ok(Capability::DETECT_THEME | Capability::READ_ACCENT_COLOR),
             theme: Ok(Theme::Dark),
-            accent: Ok(RgbaColor { r: 17, g: 34, b: 51, a: 127 }),
+            accent: Ok(RgbaColor {
+                r: 17,
+                g: 34,
+                b: 51,
+                a: 127,
+            }),
             reads: Cell::new((0, 0)),
         }
     }
@@ -128,8 +154,21 @@ mod tests {
         let object: &dyn AppearanceManager = &manager;
         let report = object.snapshot();
         assert_eq!(report.schema_version, 1);
-        assert_eq!(report.theme, AppearanceReading::Available { value: Theme::Dark });
-        assert_eq!(report.accent, AppearanceReading::Available { value: RgbaColor { r: 17, g: 34, b: 51, a: 127 } });
+        assert_eq!(
+            report.theme,
+            AppearanceReading::Available { value: Theme::Dark }
+        );
+        assert_eq!(
+            report.accent,
+            AppearanceReading::Available {
+                value: RgbaColor {
+                    r: 17,
+                    g: 34,
+                    b: 51,
+                    a: 127
+                }
+            }
+        );
         assert_eq!(manager.reads.get(), (1, 1));
     }
 
@@ -139,7 +178,10 @@ mod tests {
         manager.theme = Ok(Theme::Unknown);
         assert_eq!(manager.snapshot().theme, AppearanceReading::Unknown);
         manager.theme = Ok(Theme::Auto);
-        assert_eq!(manager.snapshot().theme, AppearanceReading::Available { value: Theme::Auto });
+        assert_eq!(
+            manager.snapshot().theme,
+            AppearanceReading::Available { value: Theme::Auto }
+        );
     }
 
     #[test]
@@ -157,8 +199,16 @@ mod tests {
         let mut manager = manager();
         manager.flags = Err(|| UdaError::DetectionFailed("private bus address".into()));
         let report = manager.snapshot();
-        assert_eq!(report.capabilities, AppearanceReading::Error { kind: AppearanceErrorKind::Detection });
-        assert_eq!(report.theme, AppearanceReading::Available { value: Theme::Dark });
+        assert_eq!(
+            report.capabilities,
+            AppearanceReading::Error {
+                kind: AppearanceErrorKind::Detection
+            }
+        );
+        assert_eq!(
+            report.theme,
+            AppearanceReading::Available { value: Theme::Dark }
+        );
         assert!(matches!(report.accent, AppearanceReading::Available { .. }));
     }
 
@@ -167,7 +217,12 @@ mod tests {
         let mut manager = manager();
         manager.theme = Err(|| UdaError::CommandFailed("sensitive path or credential".into()));
         let report = manager.snapshot();
-        assert_eq!(report.theme, AppearanceReading::Error { kind: AppearanceErrorKind::Command });
+        assert_eq!(
+            report.theme,
+            AppearanceReading::Error {
+                kind: AppearanceErrorKind::Command
+            }
+        );
         assert!(matches!(report.accent, AppearanceReading::Available { .. }));
         assert!(!format!("{report:?}").contains("sensitive"));
     }
@@ -181,9 +236,21 @@ mod tests {
 
     #[test]
     fn error_categories_preserve_io_and_internal_failures() {
-        let io: AppearanceReading<()> = AppearanceReading::from_result(Err(UdaError::Io(std::io::Error::other("private"))));
-        let internal: AppearanceReading<()> = AppearanceReading::from_result(Err(UdaError::Internal("private".into())));
-        assert_eq!(io, AppearanceReading::Error { kind: AppearanceErrorKind::Io });
-        assert_eq!(internal, AppearanceReading::Error { kind: AppearanceErrorKind::Internal });
+        let io: AppearanceReading<()> =
+            AppearanceReading::from_result(Err(UdaError::Io(std::io::Error::other("private"))));
+        let internal: AppearanceReading<()> =
+            AppearanceReading::from_result(Err(UdaError::Internal("private".into())));
+        assert_eq!(
+            io,
+            AppearanceReading::Error {
+                kind: AppearanceErrorKind::Io
+            }
+        );
+        assert_eq!(
+            internal,
+            AppearanceReading::Error {
+                kind: AppearanceErrorKind::Internal
+            }
+        );
     }
 }

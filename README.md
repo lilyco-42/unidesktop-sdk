@@ -15,6 +15,10 @@
 
 </div>
 
+LYCO fork: [read-only Windows/Linux appearance snapshots and JSON CLI](docs/READ_ONLY_APPEARANCE.md).
+This extension is under validation. It does not change browser settings or certify
+third-party detection outcomes. Upstream documentation follows.
+
 ---
 
 ## Why UDA?

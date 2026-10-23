@@ -12,7 +12,12 @@ enum Command {
 }
 
 fn parse(args: &[String]) -> Result<Command, &'static str> {
-    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+    match args
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
         [] | ["appearance"] => Ok(Command::Appearance { json: false }),
         ["--json"] | ["appearance", "--json"] => Ok(Command::Appearance { json: true }),
         ["--help"] | ["-h"] | ["appearance", "--help"] => Ok(Command::Help),
@@ -47,7 +52,9 @@ fn run() -> Result<(), (u8, String)> {
     let command = parse(&args).map_err(|message| (2, message.to_owned()))?;
     let mut output = io::stdout().lock();
     match command {
-        Command::Help => output.write_all(HELP.as_bytes()).map_err(|e| (1, e.to_string()))?,
+        Command::Help => output
+            .write_all(HELP.as_bytes())
+            .map_err(|e| (1, e.to_string()))?,
         Command::Appearance { json } => {
             let report = snapshot();
             if json {
@@ -83,9 +90,18 @@ mod tests {
     #[test]
     fn defaults_and_json_select_only_read_only_appearance() {
         assert_eq!(parse(&[]), Ok(Command::Appearance { json: false }));
-        assert_eq!(parse(&args(&["appearance"])), Ok(Command::Appearance { json: false }));
-        assert_eq!(parse(&args(&["--json"])), Ok(Command::Appearance { json: true }));
-        assert_eq!(parse(&args(&["appearance", "--json"])), Ok(Command::Appearance { json: true }));
+        assert_eq!(
+            parse(&args(&["appearance"])),
+            Ok(Command::Appearance { json: false })
+        );
+        assert_eq!(
+            parse(&args(&["--json"])),
+            Ok(Command::Appearance { json: true })
+        );
+        assert_eq!(
+            parse(&args(&["appearance", "--json"])),
+            Ok(Command::Appearance { json: true })
+        );
     }
 
     #[test]
@@ -97,7 +113,12 @@ mod tests {
 
     #[test]
     fn mutating_and_ambiguous_commands_are_rejected() {
-        for values in [&["set-wallpaper", "/private.jpg"][..], &["shutdown"], &["--json", "--json"], &["appearance", "--json", "extra"]] {
+        for values in [
+            &["set-wallpaper", "/private.jpg"][..],
+            &["shutdown"],
+            &["--json", "--json"],
+            &["appearance", "--json", "extra"],
+        ] {
             assert!(parse(&args(values)).is_err());
         }
     }
