@@ -40,7 +40,11 @@ fn json_contract_keeps_unknown_and_alpha_explicit() -> Result<(), Box<dyn std::e
             "accent": {"status": "available", "value": {"r": 17, "g": 34, "b": 51, "a": 127}}
         })
     );
-    for (theme, value) in [(Theme::Dark, "dark"), (Theme::Light, "light"), (Theme::Auto, "auto")] {
+    for (theme, value) in [
+        (Theme::Dark, "dark"),
+        (Theme::Light, "light"),
+        (Theme::Auto, "auto"),
+    ] {
         assert_eq!(serde_json::to_value(theme)?, json!(value));
     }
     Ok(())
@@ -61,12 +65,22 @@ impl AppearanceManager for Degraded {
 }
 
 #[test]
-fn serialization_redacts_errors_without_discarding_good_fields() -> Result<(), Box<dyn std::error::Error>> {
+fn serialization_redacts_errors_without_discarding_good_fields(
+) -> Result<(), Box<dyn std::error::Error>> {
     let report = Degraded.snapshot();
     let encoded = serde_json::to_value(report)?;
-    assert_eq!(encoded["theme"], json!({"status": "available", "value": "light"}));
-    assert_eq!(encoded["capabilities"], json!({"status": "error", "kind": "internal"}));
-    assert_eq!(encoded["accent"], json!({"status": "error", "kind": "detection"}));
+    assert_eq!(
+        encoded["theme"],
+        json!({"status": "available", "value": "light"})
+    );
+    assert_eq!(
+        encoded["capabilities"],
+        json!({"status": "error", "kind": "internal"})
+    );
+    assert_eq!(
+        encoded["accent"],
+        json!({"status": "error", "kind": "detection"})
+    );
     assert!(!encoded.to_string().contains("SECRET_"));
     Ok(())
 }
@@ -74,7 +88,10 @@ fn serialization_redacts_errors_without_discarding_good_fields() -> Result<(), B
 #[test]
 fn unsupported_and_error_codes_have_no_implicit_values() -> Result<(), Box<dyn std::error::Error>> {
     let unsupported: AppearanceReading<Theme> = AppearanceReading::Unsupported;
-    assert_eq!(serde_json::to_value(unsupported)?, json!({"status": "unsupported"}));
+    assert_eq!(
+        serde_json::to_value(unsupported)?,
+        json!({"status": "unsupported"})
+    );
     for (kind, name) in [
         (AppearanceErrorKind::Detection, "detection"),
         (AppearanceErrorKind::Command, "command"),
@@ -82,13 +99,17 @@ fn unsupported_and_error_codes_have_no_implicit_values() -> Result<(), Box<dyn s
         (AppearanceErrorKind::Internal, "internal"),
     ] {
         let error: AppearanceReading<Theme> = AppearanceReading::Error { kind };
-        assert_eq!(serde_json::to_value(error)?, json!({"status": "error", "kind": name}));
+        assert_eq!(
+            serde_json::to_value(error)?,
+            json!({"status": "error", "kind": name})
+        );
     }
     Ok(())
 }
 
 #[test]
-fn executable_help_and_rejected_commands_work_without_a_session() -> Result<(), Box<dyn std::error::Error>> {
+fn executable_help_and_rejected_commands_work_without_a_session(
+) -> Result<(), Box<dyn std::error::Error>> {
     let executable = env!("CARGO_BIN_EXE_uda-cli");
     let help = Command::new(executable)
         .arg("--help")

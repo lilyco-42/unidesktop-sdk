@@ -1,11 +1,6 @@
 name: Prepare SDK source and lockfile
 
 on:
-  push:
-    branches: [feat/read-only-appearance-snapshot]
-    paths:
-      - crates/uda-cli/Cargo.toml
-      - crates/uda-cli/tests/**
   workflow_dispatch:
 
 permissions:
